@@ -10,7 +10,9 @@ I plan to add the following features:
 ## Installation
 To install Kitty Background Manager, you will have to clone the repository and run
 
-```chmod +x ./install.sh```
+```
+chmod +x ./install.sh
+```
 
 from within the repository. After that, you can run the install script. 
 
@@ -19,7 +21,9 @@ The program requires poetry to install correctly.
 ## Running the program
 Once the program is installed, you can run it by calling
 
-```kittybg``` 
+```
+kittybg
+``` 
 
 from your terminal
 
