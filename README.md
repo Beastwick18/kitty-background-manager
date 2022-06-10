@@ -19,13 +19,7 @@ from within the repository. After that, you can run the install script.
 The program requires poetry to install correctly. 
 
 ## Running the program
-Once the program is installed, you can run it by calling
-
-```
-kittybg
-``` 
-
-from your terminal
+Once the program is installed, you can run it by calling the `kittybg` command from your terminal
 
 For more information on arguments and options, run it with `--help`
 
