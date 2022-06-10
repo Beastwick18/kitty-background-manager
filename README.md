@@ -21,7 +21,15 @@ The program requires poetry to install correctly.
 ## Running the program
 Once the program is installed, you can run it by calling the `kittybg` command from your terminal
 
-For more information on arguments and options, run it with `--help`
+The current arguments the program accepts are:
+- `random`: change to a random background
+    - Can be run with `--silent` to hide the output. Useful for randomizing the background when the terminal starts
+- `set`: change to a specific background
+- `enable`: enable a specific background
+- `disable`: disable a specific background
+- `list`: list all backgrounds
+- `add`: add a background to the background folder
+- `delete`: delete a background from the background folder
 
 ## Background storage
 
