@@ -35,4 +35,7 @@ The current arguments the program accepts are:
 
 Backgrounds are stored in `/home/$USER/Pictures/kittyWallpapers/` by defualt
 
+All backgrounds should be in PNG format, as that is only what kitty will accept as a valid image
+    - I will eventually add a feature to automatically convert pictures into PNG format once they are added to the background folder
+
 In the near future, there will be an option to change the location
