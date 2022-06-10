@@ -16,7 +16,7 @@ chmod +x ./install.sh
 
 from within the repository. After that, you can run the install script. 
 
-The program requires poetry to install correctly. 
+The program requires poetry, python, and pip to install correctly. 
 
 ## Running the program
 Once the program is installed, you can run it by calling the `kittybg` command from your terminal
