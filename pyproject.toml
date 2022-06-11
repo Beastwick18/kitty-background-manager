@@ -11,6 +11,7 @@ kittybg = "beastwick18_kitty_background_manager.main:app"
 [tool.poetry.dependencies]
 python = "^3.10"
 typer = {extras = ["all"], version = "^0.4.1"}
+Pillow = "^9.1.1"
 
 [tool.poetry.dev-dependencies]
 pytest = "^6.2"

@@ -3,8 +3,8 @@ A cli program for managing your backgrounds for kitty terminal
 
 This project is WIP for now.
 I plan to add the following features:
-- [ ] Config file
-- [ ] Option to dim image
+- [X] Config file
+- [X] Option to dim image
 - [ ] Option to scale and crop image
 
 ## Installation
@@ -34,6 +34,8 @@ The current arguments the program accepts are:
 ## Background storage
 
 Backgrounds are stored in `/home/$USER/Pictures/kittyWallpapers/` by defualt
+
+The current background that is to be displayed is stored in `/home/$USER/Pictures/kittyWallpapers/current/current.png`. You should set the `background_image` property in your `kitty.conf` file to point to this image
 
 All backgrounds should be in PNG format, as that is only what kitty will accept as a valid image
 - I will eventually add a feature to automatically convert pictures into PNG format once they are added to the background folder
