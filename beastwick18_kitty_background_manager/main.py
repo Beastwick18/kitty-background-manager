@@ -1,257 +1,403 @@
-from PIL import Image, ImageEnhance
-import json
-from pathlib import Path
-import builtins
-import imghdr
 import os
-import click
-from os.path import isdir, dirname, exists
+import json
+import imghdr
 import shutil
-import random as rand
+import random
+from pathlib import Path
+from PIL import Image, ImageEnhance
+from pixcat import Image as PixImage
 import typer
-from typing import Optional
+import beastwick18_kitty_background_manager.defaults as df
 
-APP_NAME = "kittybg"
+app = typer.Typer(help="A cli background manager for the Kitty terminal")
 
-enabled_path = os.path.expandvars('/home/$USER/Pictures/kittyWallpapers/')
-disabled_path = os.path.expandvars(enabled_path + 'disabled/')
-app = typer.Typer()
-brightness = 0.1
-contrast = 1.0
+enabled_path: Path = Path(os.path.expandvars(df.ENABLED_PATH))
+disabled_path: Path = Path(os.path.expandvars(df.DISABLED_PATH))
+current_path: Path = Path(os.path.expandvars(df.CURRENT_PATH))
 
-def init_dirs():
-    e: Path = Path(enabled_path)
-    d: Path = Path(disabled_path)
-    if not e.is_dir():
-        e.mkdir(parents=True)
-    if not d.is_dir():
-        d.mkdir(parents=True)
+brightness = df.BRIGHTNESS
+contrast = df.CONTRAST
+preview_size = df.PREVIEW_SIZE
+preview_on_add = df.PREVIEW_ON_ADD
+preview_fill = df.PREVIEW_FILL
+preview_align = df.PREVIEW_ALIGN
 
-def load_config():
-    app_dir = typer.get_app_dir(APP_NAME)
+previous: Path = None
+next: Path = None
+
+def get_app_file(file: str):
+    app_dir = typer.get_app_dir(df.APP_NAME)
     app_path: Path = Path(app_dir)
-    config_path: Path = app_path / "config.json"
     if not app_path.is_dir():
         app_path.mkdir(parents=True)
-    if not config_path.is_file():
-        with config_path.open('w') as _:
-            pass
-        typer.echo(f'Config file does not exist, {typer.style(to_link("creating it...", app_dir), fg=typer.colors.BLUE)}')
-        return
-    with open(config_path) as f:
-        data = json.load(f)
-        options = data.get('options')
-        if options is None:
-            return
-        
-        if b := options.get('brightness'):
-            global brightness
-            brightness = b
-        
-        if c := options.get('contrast'):
-            global contrast
-            contrast = c
-        
-        if e := options.get('enabled_path'):
-            global enabled_path
-            enabled_path = os.path.expandvars(e)
-        
-        if d := options.get('disabled_path'):
-            global disabled_path
-            disabled_path = os.path.expandvars(d)
-        
+    path: Path = app_path / file
+    return path.resolve()
 
-def folder_contains_file(folder: str, file: str):
-    for f in os.listdir(folder):
-        if not isdir(f) and exists(folder + file):
-            return True
-    return False
+def generate_default_config():
+    data = {}
+    data['options'] = {}
+    data['options']['brightness'] = df.BRIGHTNESS
+    data['options']['contrast'] = df.CONTRAST
+    data['options']['enabled_path'] = df.ENABLED_PATH
+    data['options']['disabled_path'] = df.DISABLED_PATH
+    data['options']['preview_size'] = df.PREVIEW_SIZE
+    data['options']['preview_fill'] = df.PREVIEW_FILL
+    data['options']['preview_on_add'] = df.PREVIEW_ON_ADD
+    data['options']['preview_align'] = df.PREVIEW_ALIGN
+    data['options']['current_path'] = df.CURRENT_PATH
+    
+    data['background'] = {}
+    data['background']['next'] = ""
+    data['background']['previous'] = ""
+    
+    config_path: Path = get_app_file(df.CONFIG_FILE)
+    with config_path.open('w') as f:
+        json_str = json.dumps(data, indent=4)
+        f.write(json_str)
 
-def get_ext_in_path(path: str, ext: str):
-    for f in os.listdir(path):
-        currfile = path + f
-        if not isdir(currfile):
-            # Split at file extension
-            file = f.rsplit('.', 1)
-            
-            if len(file) >= 2:
-                name, e = file
-                if not name == '' and e == ext:
-                    yield name
-
-def remove_next_file():
-    for name in get_ext_in_path(enabled_path, 'next'):
-        os.remove(enabled_path + name + '.next')
-
-
-def to_link(label: str, path: str):
+def to_link(label: str, path: Path):
     return f'\u001b]8;;file://{path}\a{label}\u001b]8;;\a'
 
-def list_next():
-    name = next(get_ext_in_path(enabled_path, 'next'), None)
-    if name:
-        typer.secho(to_link(name, enabled_path + name + '.png'), fg=typer.colors.BLUE)
-    else:
-        typer.secho("There is no next file, cannot determine which background is next", fg=typer.colors.RED, err=True)
+def to_link_style(label: str, path: Path, **kwargs):
+    return typer.style(to_link(label, path), **kwargs)
 
-@app.command()
-def list():
-    """
-    List all enabled and disabled backgrounds, as well as the next background
-    """
+def to_link_secho(label: str, path: Path, **kwargs):
+    typer.secho(to_link(label, path), **kwargs)
+
+def load_options(options):
+    if (b := options.get('brightness')) is not None:
+        global brightness
+        brightness = b
     
+    if (c := options.get('contrast')) is not None:
+        global contrast
+        contrast = c
+    
+    if (e := options.get('enabled_path')) is not None:
+        global enabled_path
+        enabled_path = Path(os.path.expandvars(e))
+    
+    if (d := options.get('disabled_path')) is not None:
+        global disabled_path
+        disabled_path = Path(os.path.expandvars(d))
+    
+    if (ps := options.get('preview_size')) is not None:
+        global preview_size
+        preview_size = ps
+    
+    if (pf := options.get('preview_fill')) is not None:
+        global preview_fill
+        preview_fill = pf
+    
+    if (po := options.get('preview_on_add')) is not None:
+        global preview_on_add
+        preview_on_add = po
+    
+    if (cp := options.get('current_path')) is not None:
+        global current_path
+        current_path = Path(os.path.expandvars(cp))
+    
+def load_background(background):
+    if (n := background.get('next')) is not None:
+        global next
+        next = Path(os.path.expandvars(n))
+    
+    if (p := background.get('previous')) is not None:
+        global previous
+        previous = Path(os.path.expandvars(p))
+
+def load_config():
+    config_path: Path = get_app_file(df.CONFIG_FILE)
+    if not config_path.is_file():
+        typer.echo(f'Config file does not exist, {to_link_style("creating it...", config_path.parent, fg=typer.colors.BLUE)}')
+        generate_default_config()
+        return
+    
+    with config_path.open('r') as f:
+        data = json.load(f)
+        if (options := data.get('options')) is not None:
+            load_options(options)
+        if (background := data.get('background')) is not None:
+            load_background(background)
+
+load_config()
+
+def set_next(n: Path):
+    if n is None:
+        return
+    global next
+    next = n
+    config_path: Path = get_app_file(df.CONFIG_FILE)
+    
+    with config_path.open('r+') as f:
+        data = json.load(f)
+        background = data.get('background')
+        bg = {'background': {'next': str(next.resolve())}}
+        
+        if background is not None and (p := background.get('next')) is not None:
+            bg['background']['previous'] = p
+        
+        data.update(bg)
+        
+        json_str = json.dumps(data, indent=4)
+        
+        f.seek(0)
+        f.write(json_str)
+        f.truncate()
+
+def error(msg: str):
+    typer.secho(msg, fg=typer.colors.RED, err=True)
+
+def folder_contains_file(folder: Path, file: str):
+    p: Path = folder / file
+    return p.exists() and not p.is_dir()
+
+def get_ext_in_path(path: Path, ext: str):
+    if not path.is_dir():
+        return
+    
+    for f in path.iterdir():
+        if f.is_file() and f.suffix == ext and not f.stem == '':
+            yield f.stem
+
+# def remove_next_file():
+#     for name in get_ext_in_path(enabled_path, '.next'):
+#         (enabled_path / (name + '.next')).unlink()
+
+# def list_next():
+#     name = next(get_ext_in_path(enabled_path, '.next'), None)
+#     if name is not None:
+#         to_link_secho(name, enabled_path / (name + '.png'), fg=typer.colors.BLUE)
+#     else:
+#         error('There is no next file, cannot determine which background is next')
+
+def print_previous():
+    if previous is None:
+        return
+    typer.secho('Previous:', fg=typer.colors.WHITE, bold=True, underline=True)
+    to_link_secho(previous.stem, next, fg=typer.colors.MAGENTA)
+
+def print_next():
+    if next is None:
+        return
     typer.secho('Next:', fg=typer.colors.WHITE, bold=True, underline=True)
-    list_next()
-    
-    typer.secho('\nEnabled ' + to_link('(📁)', enabled_path) + ':', fg=typer.colors.WHITE, bold=True, underline=True)
-    for i in get_ext_in_path(enabled_path, 'png'):
-        typer.secho(to_link(i, enabled_path + i + '.png'), fg=typer.colors.GREEN)
-    
-    typer.echo(typer.style('\nDisabled ' + to_link('(📁)', disabled_path) + ':', fg=typer.colors.WHITE, bold=True, underline=True))
-    for i in get_ext_in_path(disabled_path, 'png'):
-        typer.secho(to_link(i, disabled_path + i + '.png'), fg=typer.colors.RED)
+    to_link_secho(next.stem, next, fg=typer.colors.BLUE)
 
-def silent_callback(silent: bool):
-    bg = rand.choice(builtins.list(get_ext_in_path(enabled_path, 'png')))
+@app.command("list", short_help="List all enabled and disabled backgrounds, as well as the next background")
+def cli_list(
+        nxt: bool = typer.Option(False, '--next', '-n', help='The next background will be shown'),
+        prev: bool = typer.Option(False, '--previous', '-p', help='The previous background will be shown'),
+        enabled: bool = typer.Option(False, '--enabled', '-e', help='The enabled backgrounds will be shown'),
+        disabled: bool = typer.Option(False, '--disabled', '-d', help='The disabled backgrounds will be shown')
+        ):
+    if not (nxt or prev or enabled or disabled):
+        nxt = True
+        prev = True
+        enabled = True
+        disabled = True
     
-    file = enabled_path + bg + '.png'
-    if not exists(file) or isdir(file):
-        file = disabled_path + bg + '.png'
-        if not exists(file) or isdir(file):
-            typer.secho('Could not set a random background', fg=typer.colors.RED, err=True)
-            return
+    if nxt and next is not None:
+        print_next()
+        typer.echo()
     
-    remove_next_file()
+    if prev and previous is not None:
+        print_previous()
+        typer.echo()
     
-    with open(enabled_path + bg + '.next', 'w') as _:
-        pass
+    if enabled:
+        typer.secho(f'Enabled {to_link("(📁)", enabled_path)}:', fg=typer.colors.WHITE, bold=True, underline=True)
+        for name in get_ext_in_path(enabled_path, '.png'):
+            to_link_secho(name, enabled_path / (name + '.png'), fg=typer.colors.GREEN)
+        typer.echo()
     
-    shutil.copy(file, enabled_path + 'current/current.png')
+    if disabled:
+        typer.secho(f'Disabled {to_link("(📁)", disabled_path)}:', fg=typer.colors.WHITE, bold=True, underline=True)
+        for name in get_ext_in_path(disabled_path, '.png'):
+            to_link_secho(name, disabled_path / (name + '.png'), fg=typer.colors.RED)
+
+@app.command("random", short_help="Set next background to a random enabled background")
+def cli_random(
+        silent: bool = typer.Option(False, "--silent", "-s", help="If present, there will be no output to stdout"),
+        disabled: bool = typer.Option(False, "--disabled", "-d", help="Select a random background from the disabled folder")
+        ):
+    if disabled:
+        path: Path = disabled_path
+    else:
+        path: Path = enabled_path
+    bg = random.choice(list(get_ext_in_path(path, '.png')))
+    file: Path = path / (bg + '.png')
+    if not file.exists() or file.is_dir():
+        error('Could not set a random background')
+        return
+    
+    # remove_next_file()
+    
+    # (enabled_path / (bg + '.next')).touch()
+    set_next(file)
+    
+    shutil.copy(file, current_path / df.CURRENT_FILE)
     
     if not silent:
-        typer.secho('Next:', fg=typer.colors.WHITE, bold=True, underline=True)
-        list_next()
+        print_next()
 
-@app.command()
-def random(s: Optional[bool] = typer.Option(None, "--silent", help="If present, there will be no output to stdout", callback=silent_callback)):
-    """
-    Set next background to a random one
-    """
-
-@app.command()
-def enable(bg: str = typer.Argument("Background", help="The name of the background to be enabled", autocompletion=(lambda: get_ext_in_path(disabled_path, 'png')))):
-    """
-    Enable a background that is currently disabled
-    """
-    
-    file = disabled_path + bg + '.png'
-    if not exists(file):
-        typer.secho(f'Cannot enable background: {bg}.png does not exist', fg=typer.colors.RED, err=True)
-    elif isdir(file):
-        typer.secho(f'Cannot enable background: {bg}.png is a directory', fg=typer.colors.RED, err=True)
-    elif not folder_contains_file(disabled_path, bg+'.png'):
-        typer.secho(f'Cannot enable background: {bg}.png is not present within the disabled background path', fg=typer.colors.RED, err=True)
+@app.command(short_help="Enable a background that is currently disabled")
+def enable(bg: str = typer.Argument(..., help="The name of the background to be enabled", autocompletion=(lambda: get_ext_in_path(disabled_path, '.png')))):
+    file = disabled_path / (bg + '.png')
+    if not file.exists():
+        error(f'Cannot enable background: {bg}.png does not exist')
+    elif file.is_dir():
+        error(f'Cannot enable background: {bg}.png is a directory')
     else:
         typer.echo(f'Enabled {bg}.png')
-        shutil.move(file, enabled_path + bg + '.png')
+        file.rename(enabled_path / (bg + '.png'))
 
-@app.command()
-def disable(bg: str = typer.Argument("Background", help="The name of the background to be enabled", autocompletion=(lambda: get_ext_in_path(enabled_path, 'png')))):
-    """
-    Disable a background that is currently enabled
-    """
-    
-    file = enabled_path + bg + '.png'
-    if not exists(file):
-        typer.secho(f'Cannot enable background: {bg}.png does not exist', fg=typer.colors.RED, err=True)
-    elif isdir(file):
-        typer.secho(f'Cannot enable background: {bg}.png is a directory', fg=typer.colors.RED, err=True)
-    elif not folder_contains_file(enabled_path, bg+'.png'):
-        typer.secho(f'Cannot enable background: {bg}.png is not present within the disabled background path', fg=typer.colors.RED, err=True)
+@app.command(short_help="Disable a background that is currently enabled")
+def disable(bg: str = typer.Argument(..., help="The name of the background to be enabled", autocompletion=(lambda: get_ext_in_path(enabled_path, '.png')))):
+    file = enabled_path / (bg + '.png')
+    if not file.exists():
+        error(f'Cannot disable background: {bg}.png does not exist')
+    elif file.is_dir():
+        error(f'Cannot disable background: {bg}.png is a directory')
     else:
         typer.echo(f'Disabled {bg}.png')
-        shutil.move(file, disabled_path + bg + '.png')
+        file.rename(disabled_path / (bg + '.png'))
 
 def set_autocomplete():
-    e = builtins.list(get_ext_in_path(enabled_path, 'png'))
-    d = builtins.list(get_ext_in_path(disabled_path, 'png'))
+    e = list(get_ext_in_path(enabled_path, '.png'))
+    d = list(get_ext_in_path(disabled_path, '.png'))
     return e + d
 
-@app.command()
-def set(bg: str = typer.Argument("Background", help="The name of the background to be set", autocompletion=set_autocomplete)):
-    """
-    Set next background to a specific background (can be an enabled or disabled background)
-    """
-    
-    file = enabled_path + bg + '.png'
-    if not exists(file) or isdir(file):
-        file = disabled_path + bg + '.png'
-        if not exists(file) or isdir(file):
-            typer.secho(f'Could not set background: {file} is not a valid background', fg=typer.colors.RED, err=True)
-            return
-    
-    remove_next_file()
-    
-    with open(enabled_path + bg + '.next', 'w') as _:
-        pass
-    
-    shutil.copy(file, enabled_path + 'current/current.png')
-    
-    typer.secho('Next:', fg=typer.colors.WHITE, bold=True, underline=True)
-    list_next()
+def search_enabled_disabled(enabled, disabled, bg, op):
+    first_occurence = False
+    if not enabled and not disabled:
+        first_occurence = True
 
-@app.command()
-def add(path_to_file: str = typer.Argument("Path to image", help="The path to the image to be added to the background folder")):
-    """
-    Add an image to the background folder
-    """
-    file = os.path.basename(path_to_file)
-    props = file.rsplit('.', 1)
+    found = False
+    if disabled or first_occurence:
+        file = (disabled_path / (bg + '.png'))
+        if file.exists():
+            found = True
+            op(file)
+
+    if enabled or (first_occurence and not found):
+        file = (enabled_path / (bg + '.png'))
+        if file.exists():
+            found = True
+            op(file)
+    return found
+
+@app.command(short_help="Set next background to a specific background (can be an enabled or disabled background)")
+def set(
+        bg: str = typer.Argument(..., help="The name of the background to be set", autocompletion=set_autocomplete),
+        enabled: bool = typer.Option(False, "--enabled", "-e", help="Only search through the enabled path for the background"),
+        disabled: bool = typer.Option(False, "--disabled", "-d", help="Only search through the enabled path for the background"),
+        silent: bool = typer.Option(False, "--silent", "-s", help="If present, there will be no output to stdout"),
+        ):
     
-    if not exists(path_to_file):
-        typer.secho(f'Could not add {path_to_file}: The file does not exist', fg=typer.colors.RED, err=True)
-    elif isdir(path_to_file):
-        typer.secho(f'Could not add {path_to_file}: The given path points to a directory', fg=typer.colors.RED, err=True)
-    elif not len(props) >= 2 or props[0] == '' or props[1] == '':
-        typer.secho(f'Could not add {path_to_file}: {file} is not a valid filename', fg=typer.colors.RED, err=True)
-    # elif not len(props) >= 2 or not props[1] == 'png':
-    #     typer.secho(f'Could not add {path_to_file}: {file} is not of type ".png"', fg=typer.colors.RED, err=True)
-    elif imghdr.what(path_to_file) == None:
-        # Given file is not an image
-        typer.secho(f'Could not add {path_to_file}: The file is not an image', fg=typer.colors.RED, err=True)
+    if enabled and disabled:
+        enabled = False
+        disabled = False
+    
+    file: Path = None
+    def op(f: Path):
+        nonlocal file
+        file = f
+    
+    search_enabled_disabled(enabled, disabled, bg, op)
+    
+    if file is None:
+        error(f'Could not set background {bg}.png')
+        return
+    
+    # remove_next_file()
+    
+    # (enabled_path / (bg + '.next')).touch()
+    set_next(file)
+    
+    shutil.copy(file, current_path / df.CURRENT_FILE)
+    
+    if not silent:
+        print_next()
+
+@app.command(short_help="Add an image to the background folder")
+def add(
+        path_to_file: str = typer.Argument(..., help="The path to the image to be added to the background folder"),
+        b: float = typer.Option(brightness, "--brightness", help="Overrides the set value for brightness defined in the config file"),
+        c: float = typer.Option(contrast, "--contrast", help="Overrides the set value for brightness defined in the config file"),
+        preview: bool = typer.Option(preview_on_add, help="Overrides the set value for showing preview after adding an image")
+        ):
+    file: Path = Path(path_to_file)
+    
+    if not file.exists():
+        error(f'Could not add {path_to_file}: The file does not exist')
+    elif file.stem == '':
+        error(f'Could not add {path_to_file}: {file.stem} is not a valid filename')
+    elif imghdr.what(path_to_file) is None:
+        error(f'Could not add {path_to_file}: The file is not an image')
+    elif file.is_dir():
+        error(f'Could not add {path_to_file}: The given path points to a directory')
+        
     else:
-        out_path = enabled_path + props[0] + '.png'
+        out_path = enabled_path / (file.stem + '.png')
         img = Image.open(path_to_file)
         enhancer = ImageEnhance.Contrast(img)
-        img_out = enhancer.enhance(contrast)
+        img_out = enhancer.enhance(c)
         enhancer = ImageEnhance.Brightness(img_out)
-        img_out = enhancer.enhance(brightness)
-        img_out.save(out_path)
-        # img_out.save(out_path+'.png')
-        typer.echo('Added ' + typer.style(to_link(props[0], out_path), fg=typer.colors.GREEN))
+        img_out = enhancer.enhance(b)
+        img_out.save(str(out_path.resolve()))
+        typer.echo(f'Added {to_link_style(file.stem, out_path, fg=typer.colors.GREEN)}')
+        if preview:
+            preview_image(out_path)
 
-@app.command()
-def delete(bg: str = typer.Argument("Background", help="The name of the background to be deleted from either the enabled or disabled folder")):
-    """
-    Delete an image from the background folder
-    """
+@app.command(short_help="Looks for the first occurence of a background in the disabled and enabled folder in that order and deletes it.")
+def delete(
+        bg: str = typer.Argument(..., help="The name of the background to be deleted from either the enabled or disabled folder", autocompletion=set_autocomplete),
+        enabled: bool = typer.Option(False, "--enabled", help="Search for the background in the enabled folder"),
+        disabled: bool = typer.Option(False, "--disabled", help="Search for the background in the disabled folder")
+        ):
+    if not search_enabled_disabled(enabled, disabled, bg, (lambda file: file.unlink())):
+        error(f'Unable to find background "{bg}.png"')
+    else:
+        typer.secho(f'Deleted "{bg}.png"')
 
-@app.command()
+def preview_image(img: Path, size: int = preview_size, fill: bool = preview_fill):
+    file = str(img.resolve())
+    if fill:
+        PixImage(file).fit_screen(enlarge=True).show()
+    else:
+        PixImage(file).thumbnail(size).show(align='left')
+
+@app.command(short_help='Looks for the first occurence of a background in the disabled and enabled folder in that order and shows a preview')
+def preview(
+        bg: str = typer.Argument(..., help="The name of the background to be deleted from either the enabled or disabled folder", autocompletion=set_autocomplete),
+        enabled: bool = typer.Option(False, "--enabled", help="Search for the background in the enabled folder"),
+        disabled: bool = typer.Option(False, "--disabled", help="Search for the background in the disabled folder"),
+        size: int = typer.Option(preview_size, "--size", help="Set the size for the outputted preview (value must be > 0 and <= 4096"),
+        fill: bool = typer.Option(preview_fill, "--fill", help="Fill the screen with the image")
+        ):
+    if not fill and (size <= 0 or size > 4096):
+        error(f'The given value of {size} is outside the range of 0<n<=4096')
+        return
+    
+    def op(file):
+        typer.echo(f'Previewing {to_link_style(file.name, file, fg=typer.colors.BLUE)}:')
+        preview_image(file, size, fill)
+    
+    if not search_enabled_disabled(enabled, disabled, bg, op):
+        error(f'Unable to find background "{bg}.png"')
+
+@app.command(short_help="Initialize all required directories and create a config.json file if one does not exist")
 def init():
-    """
-    Initialize all required directories and create a config.json file if one does not exist
-    """
-    # TODO: Implement this
+    if not enabled_path.is_dir():
+        enabled_path.mkdir(parents=True)
+    if not disabled_path.is_dir():
+        disabled_path.mkdir(parents=True)
 
 @app.callback(invoke_without_command=True)
 def default(ctx: typer.Context):
-    """
-    A cli background manager for the Kitty terminal
-    """
-    load_config()
-    init_dirs()
+    init()
     
     if ctx.invoked_subcommand is not None:
         return
     
-    list()
+    cli_list()
