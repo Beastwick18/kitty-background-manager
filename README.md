@@ -10,7 +10,7 @@ I plan to add the following features:
 - [ ] Add playlists... maybe?
 
 ## Installation
-The program requires poetry, python, and pip to install correctly.
+The program requires poetry, python, and pip to install correctly. Make sure you have all three installed before attempting installation.
 
 To install Kitty Background Manager, you will have to clone the repository and run the following commands to install the program
 
@@ -26,6 +26,15 @@ This command will create the enabled folder and disabled folder as specified in 
 
 This program uses [typer](https://github.com/tiangolo/typer) for handling the cli portion of the app and [pixcat](https://github.com/mirukana/pixcat) for displaying image previews in the terminal
 
+## Post-installation instructions
+After installing, there are some steps you should take to get the program working as intended:
+1. Run `kittybg init` to create the config file and enabled, disabled, and current folders
+2. Configure your `config.json` file to your liking
+    - Feel free to mess around with how the program will edit the images once added by changing the `brightness`, `contrast`, and other properties
+4. Configure your `kitty.conf` so that the `background_image` properties value is set to the same value as the `current_image` property in your `config.json` file
+5. Go ahead and add your backgrounds to the enabled folder. You can either manually add them, or use `kittybg add` to add them.
+6. That's it! Everything should now be working. If you run a command like `kittybg set [BG]` or `kittybg random`, you should see a different background once you restart your terminal.
+
 ## Running the program
 Once the program is installed, you can run it by calling the `kittybg` command from your terminal
 
@@ -37,7 +46,7 @@ The current arguments the program accepts are:
     - If `preview_on_add` is set to `true` in `config.json`, then everytime an image is added a preview will be shown in the terminal. This is useful for quickly seeing the effects of any edits made by the program
 - `delete`: Looks for the first occurence of a background in the disabled and enabled folder in that order and deletes it.
     - Can be run with `--enabled` or `--disabled` to search through just the enabled or disabled folder
-- `disable`:Disable a background that is currently enabled
+- `disable`: Disable a background that is currently enabled
 - `enable`: Enable a background that is currently disabled
 - `init`: Initialize all required directories and create a config.json file if one does not exist
 - `list`: List all enabled and disabled backgrounds, as well as the next background
@@ -47,8 +56,6 @@ The current arguments the program accepts are:
 
 ## Config file
 The config file for this program is in a json file typically located in `/home/$USER/.config/kittybg/config.json`
-
-The editable properties stored in this json are the brightness of the image, the contrast of the image, the enabled folder path, and the disabled folder path
 
 An example config.json looks like this
 ```json
@@ -65,6 +72,17 @@ An example config.json looks like this
 }
 ```
 
+## Changing the background when kitty starts
+The main reason I created this program was so that I could have random backgrounds whenever I created a new kitty instance.
+
+If this is something you also would like to do, then follow the below steps:
+1. Open your `.bashrc`, `config.fish`, `.zshrc` or whichever file is appropriate for your terminal.
+2. Add the command `kittybg random --silent` to this file and save it.
+    - Typically, you can just add the command to the end of the file
+3. Restart the terminal twice. The first time you restart, a random background will be set, but it will only show once the next terminal is opened. This is why you have to restart twice.
+
+This is just how kitty works. Since the `.bashrc` file is run after kitty has already started, the background that is show is not the one stored in the `current.png` file, but is actually the one that was stored there before the `.bashrc` was run. Basically, kitty will read the `current.png` file and set the background, and then the command `kittybg random --silent` is run right after, which updates the `current.png` file to a new background. To avoid confusion, the _next_ background is considered to be the `current.png` file, and the _previous_ background is considered to be the previous `current.png`.
+
 ## Background storage
 
 Backgrounds are stored in `/home/$USER/Pictures/kittyWallpapers/` by defualt
@@ -72,6 +90,4 @@ Backgrounds are stored in `/home/$USER/Pictures/kittyWallpapers/` by defualt
 The current background that is to be displayed is stored in `/home/$USER/Pictures/kittyWallpapers/current/current.png`. You should set the `background_image` property in your `kitty.conf` file to point to this image
 
 All backgrounds should be in PNG format, as that is only what kitty will accept as a valid image
-- When using the `add` command, the image will automatically be converted into PNG format
-
-In the near future, there will be an option to change the location
+- When using the `add` command, the image will automatically be converted into PNG format. Any images manually added should be already in the correct format.
