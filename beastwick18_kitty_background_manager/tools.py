@@ -36,12 +36,12 @@ def search_enabled_disabled(enabled, bg):
         if file.exists():
             return file
 
-def preview_image(img: Path, size: int, fill: bool):
+def preview_image(img: Path, size: int, fill: bool, a: str):
     file = str(img.resolve())
     if fill:
         PixImage(file).fit_screen(enlarge=True).show()
     else:
-        PixImage(file).thumbnail(size).show(align='left')
+        PixImage(file).thumbnail(size).show(align=a)
 
 def resolve_name_conflict(file: Path):
     n = 1

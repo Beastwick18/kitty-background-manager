@@ -6,7 +6,7 @@ I plan to add the following features:
 - [X] Config file
 - [X] Option to dim image
 - [ ] Option to scale and crop image
-- [ ] Add `config` command for quickly changing the config file without having to open it
+- [X] Add `config` command for quickly changing the config file without having to open it
 - [ ] Add playlists... maybe?
 
 ## Installation
@@ -53,6 +53,8 @@ The current arguments the program accepts are:
 - `random`: Set next background to a random one
     - Can be run with `--silent` to hide the output. Useful for randomizing the background when the terminal starts
 - `set`: Set next background to a specific background (can be an enabled or disabled background)
+- `config`: Quickly find and set properties in the config file
+    - Takes in a `property` and an optional `value` to set the property to. If no value is given, it will print out the current value of the property
 
 ## Config file
 The config file for this program is in a json file typically located in `/home/$USER/.config/kittybg/config.json`
@@ -65,9 +67,18 @@ An example config.json looks like this
         "contrast": 1.15,
         "enabled_path": "/home/$USER/Pictures/kittyWallpapers/",
         "disabled_path": "/home/$USER/Pictures/kittyWallpapers/disabled/",
+        "current_path": "/home/$USER/Pictures/kittyWallpapers/current/",
         "preview_size": 512,
-        "preview_fill": false,
-        "preview_on_add": true
+        "preview_align": "left",
+        "crop_and_scale": true,
+        "crop_size": "1920x1080",
+        "scale_type": "fill",
+        "preview_on_add": true,
+        "preview_fill": false
+    },
+    "background": {
+        "next": "",
+        "previous": ""
     }
 }
 ```
