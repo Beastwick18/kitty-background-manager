@@ -54,6 +54,7 @@ The current arguments the program accepts are:
 - `enable`: Enable a background that is currently disabled
 - `init`: Initialize all required directories and create a config.json file if one does not exist
 - `list`: List all enabled and disabled backgrounds, as well as the next background
+    - Note that running `kittybg` without any arguments is equivalent to running `kittybg list`
 - `random`: Set next background to a random one
     - Can be run with `--silent` to hide the output. Useful for randomizing the background when the terminal starts
 - `set`: Set next background to a specific background (can be an enabled or disabled background)
