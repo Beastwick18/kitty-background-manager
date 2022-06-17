@@ -9,6 +9,10 @@ I plan to add the following features:
 - [X] Add `config` command for quickly changing the config file without having to open it
 - [ ] Add playlists... maybe?
 
+# Simple Demo
+Below is a simple demo showing the process of adding, disabling, and changing the background
+![Demo](assets/demo.gif)
+
 ## Installation
 The program requires poetry, python, and pip to install correctly. Make sure you have all three installed before attempting installation.
 
@@ -64,7 +68,7 @@ An example config.json looks like this
 {
     "options": {
         "brightness": 0.1,
-        "contrast": 1.15,
+        "contrast": 1.0,
         "enabled_path": "/home/$USER/Pictures/kittyWallpapers/",
         "disabled_path": "/home/$USER/Pictures/kittyWallpapers/disabled/",
         "current_path": "/home/$USER/Pictures/kittyWallpapers/current/",
@@ -73,6 +77,7 @@ An example config.json looks like this
         "crop_and_scale": true,
         "crop_size": "1920x1080",
         "scale_type": "fill",
+        "background_color": "#000000",
         "preview_on_add": true,
         "preview_fill": false
     },
