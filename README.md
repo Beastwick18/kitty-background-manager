@@ -94,7 +94,8 @@ If this is something you also would like to do, then follow the below steps:
 1. Open your `.bashrc`, `config.fish`, `.zshrc` or whichever file is appropriate for your terminal.
 2. Add the command `kittybg random --silent` to this file and save it.
     - Typically, you can just add the command to the end of the file
-3. Restart the terminal twice. The first time you restart, a random background will be set, but it will only show once the next terminal is opened. This is why you have to restart twice.
+3. Run the command `kittybg random` in your terminal
+4. Restart the terminal. The first time you restart, a random background will be set, but it will only show once the next terminal is opened.
 
 This is just how kitty works. Since the `.bashrc` file is run after kitty has already started, the background that is show is not the one stored in the `current.png` file, but is actually the one that was stored there before the `.bashrc` was run. Basically, kitty will read the `current.png` file and set the background, and then the command `kittybg random --silent` is run right after, which updates the `current.png` file to a new background. To avoid confusion, the _next_ background is considered to be the `current.png` file, and the _previous_ background is considered to be the previous `current.png`.
 
