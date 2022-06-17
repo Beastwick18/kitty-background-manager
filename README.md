@@ -13,7 +13,6 @@ I plan to add the following features:
 The program requires poetry, python, and pip to install correctly. Make sure you have all three installed before attempting installation.
 
 To install Kitty Background Manager, you will have to clone the repository and run the following commands to install the program
-
 ```
 chmod +x ./install.sh
 ./install.sh
@@ -29,7 +28,8 @@ This program uses [typer](https://github.com/tiangolo/typer) for handling the cl
 ## Post-installation instructions
 After installing, there are some steps you should take to get the program working as intended:
 1. Run `kittybg init` to create the config file and enabled, disabled, and current folders
-2. Configure your `config.json` file to your liking
+    - Optionally, you can also run `kittybg --install-completion` to get autocompletion for kittybg in your terminal. Doing this is recommended as it will autocomplete names of backgrounds, as well as config properties and much more.
+3. Configure your `config.json` file to your liking
     - Feel free to mess around with how the program will edit the images once added by changing the `brightness`, `contrast`, and other properties
 4. Configure your `kitty.conf` so that the `background_image` properties value is set to the same value as the `current_image` property in your `config.json` file
 5. Go ahead and add your backgrounds to the enabled folder. You can either manually add them, or use `kittybg add` to add them.
@@ -82,7 +82,6 @@ An example config.json looks like this
     }
 }
 ```
-
 ## Changing the background when kitty starts
 The main reason I created this program was so that I could have random backgrounds whenever I created a new kitty instance.
 

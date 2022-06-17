@@ -6,7 +6,7 @@ import random
 from typing import Optional, List
 from enum import Enum
 from pathlib import Path
-from PIL import Image, ImageEnhance
+from PIL import Image, ImageEnhance, ImageOps
 from pixcat import Image as PixImage
 import typer
 import beastwick18_kitty_background_manager.config as cfg
@@ -34,11 +34,9 @@ def cli_list(
     
     if next:
         out.print_next()
-        typer.echo()
     
     if prev:
         out.print_previous()
-        typer.echo()
     
     if enabled:
         typer.secho(f'Enabled {out.to_link("(📁)", cfg.enabled_path)}:', fg=typer.colors.WHITE, bold=True, underline=True)
@@ -60,7 +58,10 @@ def cli_random(
         path: Path = cfg.disabled_path
     else:
         path: Path = cfg.enabled_path
-    bg = random.choice(list(tools.get_ext_in_path(path, '.png')))
+    files = list(tools.get_ext_in_path(path, '.png'))
+    if len(files) <= 0:
+        return
+    bg = random.choice(files)
     file: Path = path / (bg + '.png')
     if not file.exists() or file.is_dir():
         out.error('Could not set a random background')
@@ -143,12 +144,9 @@ def set(
 
 @app.command(short_help='Add an image to the background folder')
 def add(
-    path_to_file: str = typer.Argument(
-        ...,
-        help='The path to the image to be added to the background folder'
-    ),
-    b: float = typer.Option(cfg.conf['brightness'], '--brightness', help='Overrides the set value for brightness defined in the config file'),
-    c: float = typer.Option(cfg.conf['contrast'], '--contrast', help='Overrides the set value for brightness defined in the config file'),
+    path_to_file: str = typer.Argument(..., help='The path to the image to be added to the background folder'),
+    brightness: float = typer.Option(cfg.conf['brightness'], '--brightness', help='Overrides the set value for brightness defined in the config file'),
+    contrast: float = typer.Option(cfg.conf['contrast'], '--contrast', help='Overrides the set value for brightness defined in the config file'),
     enabled: bool = typer.Option(True, '--enabled/--disabled', '-e/-d', help='Add the new image to the enabled/disabled folder'),
     preview: bool = typer.Option(cfg.conf['preview_on_add'], help='Overrides the set value for showing preview after adding an image'),
     size: int = typer.Option(cfg.conf['preview_size'], '--size', help='Set the size for the outputted preview (value must be > 0 and <= 4096'),
@@ -204,12 +202,30 @@ def add(
         out_path = new_path
     
     img = Image.open(path_to_file)
-    enhancer = ImageEnhance.Contrast(img)
-    img_out = enhancer.enhance(c)
-    enhancer = ImageEnhance.Brightness(img_out)
-    img_out = enhancer.enhance(b)
     
-    img_out.save(str(out_path.resolve()))
+    crop_props = crop_size.strip().split('x')
+    if len(crop_props) != 2:
+        out.error(f'crop_size\'s value of "{crop_size}" is incorrect. Should be in the format "WxH"')
+        return
+    crop_w, crop_h = (int(crop_props[0]), int(crop_props[1]))
+    if scale_type == 'none':
+        pass
+    elif scale_type == 'fit':
+        bgcol = tools.hex_to_tuple(cfg.conf['background_color'])
+        img = ImageOps.pad(img, (crop_w, crop_h), color=bgcol)
+        img = img.resize((crop_w, crop_h))
+    elif scale_type == 'fill':
+        img = ImageOps.fit(img, (crop_w, crop_h))
+        img = img.resize((crop_w, crop_h))
+    
+    if contrast != 1:
+        enhancer = ImageEnhance.Contrast(img)
+        img = enhancer.enhance(contrast)
+    if brightness != 1:
+        enhancer = ImageEnhance.Brightness(img)
+        img = enhancer.enhance(brightness)
+    
+    img.save(str(out_path.resolve()))
     
     typer.echo(f'Added {out.to_link_style(out_path.name, out_path, fg=col)}')
     if preview:
@@ -324,6 +340,8 @@ def init():
         cfg.enabled_path.mkdir(parents=True)
     if not cfg.disabled_path.is_dir():
         cfg.disabled_path.mkdir(parents=True)
+    if not cfg.current_path.is_dir():
+        cfg.current_path.mkdir(parents=True)
 
 @app.callback(invoke_without_command=True)
 def default(ctx: typer.Context):

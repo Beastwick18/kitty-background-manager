@@ -50,3 +50,7 @@ def resolve_name_conflict(file: Path):
     if n == 1000:
         return None
     return file.with_stem(f'{file.stem}_{n}')
+
+def hex_to_tuple(hex: str):
+    hex = hex.strip().lstrip('#')
+    return tuple(int(hex[i:i+2], 16) for i in (0, 2, 4))

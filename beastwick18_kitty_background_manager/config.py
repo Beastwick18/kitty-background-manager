@@ -28,6 +28,7 @@ conf = {
     'crop_and_scale': True,
     'crop_size': '1920x1080',
     'scale_type': 'fill',
+    'background_color': '#FF8800',
     'preview_on_add': True,
     'preview_fill': False
 }
@@ -52,15 +53,20 @@ def set_paths():
     current_path = Path(os.path.expandvars(conf['current_path']))
 
 def load_options(options):
+    err = False
     for name, value in conf.items():
         if (o := options.get(name)) is not None:
             if type(o) == type(value):
                 conf[name] = o
             else:
+                err = True
                 out.error(f'Cannot read option "{name}" (value={o}): Expected value of type "{out.readable_type(value)}", got type "{out.readable_type(o)}"')
                 out.error(f'Setting "{name}" to default value of {value}')
-    
-    
+        else:
+            err = True
+    if err:
+        save_config()
+
 def load_background(background):
     if (n := background.get('next')) is not None:
         global next
