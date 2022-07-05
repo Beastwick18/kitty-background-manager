@@ -16,17 +16,3 @@ def error(msg: str):
 
 def readable_type(o):
     return str(type(o)).split("'")[1]
-
-def print_previous():
-    if cfg.previous is None or not cfg.previous.exists() or cfg.previous.stem == '':
-        return
-    typer.secho('Previous:', fg=typer.colors.WHITE, bold=True, underline=True)
-    to_link_secho(cfg.previous.stem, cfg.previous, fg=typer.colors.MAGENTA)
-    typer.echo()
-
-def print_next():
-    if cfg.next is None or not cfg.next.exists() or cfg.next.stem == '':
-        return
-    typer.secho('Next:', fg=typer.colors.WHITE, bold=True, underline=True)
-    to_link_secho(cfg.next.stem, cfg.next, fg=typer.colors.BLUE)
-    typer.echo()

@@ -3,8 +3,11 @@ from enum import Enum
 from pathlib import Path
 import json
 import typer
+from PIL import ImageColor
 import beastwick18_kitty_background_manager.tools as tools
 import beastwick18_kitty_background_manager.output as out
+from dataclasses import dataclass
+from typing import Any, Callable
 
 APP_NAME = 'kittybg'
 CONFIG_FILE = 'config.json'
@@ -17,25 +20,37 @@ current_path: Path = None
 previous: Path = None
 next: Path = None
 
-conf = {
-    'brightness': 0.1,
-    'contrast': 1.0,
-    'enabled_path': '/home/$USER/Pictures/kittyWallpapers/',
-    'disabled_path': '/home/$USER/Pictures/kittyWallpapers/disabled/',
-    'current_path': '/home/$USER/Pictures/kittyWallpapers/current/',
-    'preview_size': 512,
-    'preview_align': 'left',
-    'crop_and_scale': True,
-    'crop_size': '1920x1080',
-    'scale_type': 'fill',
-    'background_color': '#FF8800',
-    'preview_on_add': True,
-    'preview_fill': False
-}
+@dataclass
+class ConfProperty:
+    name: str
+    value: Any
+    validate_method: Callable
+    
+    def validate(self, x):
+        return self.validate_method(self.name, x)
+
+conf = {}
+
+def add_property(name: str, value: Any, validate_method: Callable):
+    conf[name] = ConfProperty(name, value, validate_method)
+
+add_property('brightness', 0.1, lambda n, x: tools.assert_type(n, x, (float, int)))
+add_property('contrast', 1.0, lambda n, x: tools.assert_type(n, x, (float, int)))
+add_property('enabled_path', '/home/$USER/Pictures/kittyWallpapers/', lambda n, x: tools.assert_type(n, x, str))
+add_property('disabled_path', '/home/$USER/Pictures/kittyWallpapers/disabled/', lambda n, x: tools.assert_type(n, x, str))
+add_property('current_path', '/home/$USER/Pictures/kittyWallpapers/current/', lambda n, x: tools.assert_type(n, x, str))
+add_property('preview_size', 512, lambda n, x: tools.assert_type(n, x, int) and tools.assert_range('preview_size', 0, 4096, x))
+add_property('preview_align', 'left', lambda n, x: tools.assert_type(n, x, str) and tools.assert_in(n, x, ('left', 'center', 'right')))
+add_property('crop_and_scale', True, lambda n, x: tools.assert_type(n, x, bool))
+add_property('crop_size', '1920x1080', lambda n, x: tools.assert_type(n, x, str) and tools.valid_dimensions(n, x))
+add_property('scale_type', 'fill', lambda n, x: tools.assert_type(n, x, str) and tools.assert_in(n, x, ('fill', 'fit', 'none')))
+add_property('background_color', '#000000', lambda n, x: tools.valid_color(n, x))
+add_property('preview_on_add', True, lambda n, x: tools.assert_type(n, x, bool))
+add_property('preview_fill', False, lambda n, x: tools.assert_type(n, x, bool))
 
 def generate_default_config():
     data = {}
-    data['options'] = conf
+    data['options'] = {name: data.value for name, data in conf.items()}
     
     data['background'] = {}
     data['background']['next'] = ''
@@ -48,24 +63,18 @@ def generate_default_config():
 
 def set_paths():
     global enabled_path, disabled_path, current_path
-    enabled_path = Path(os.path.expandvars(conf['enabled_path']))
-    disabled_path = Path(os.path.expandvars(conf['disabled_path']))
-    current_path = Path(os.path.expandvars(conf['current_path']))
+    enabled_path = Path(os.path.expandvars(conf['enabled_path'].value))
+    disabled_path = Path(os.path.expandvars(conf['disabled_path'].value))
+    current_path = Path(os.path.expandvars(conf['current_path'].value))
 
 def load_options(options):
-    err = False
-    for name, value in conf.items():
+    for name, data in conf.items():
+        value = data.value
         if (o := options.get(name)) is not None:
-            if type(o) == type(value):
-                conf[name] = o
+            if data.validate(o):
+                conf[name].value = o
             else:
-                err = True
-                out.error(f'Cannot read option "{name}" (value={o}): Expected value of type "{out.readable_type(value)}", got type "{out.readable_type(o)}"')
                 out.error(f'Setting "{name}" to default value of {value}')
-        else:
-            err = True
-    if err:
-        save_config()
 
 def load_background(background):
     if (n := background.get('next')) is not None:
@@ -96,7 +105,7 @@ def save_config():
     with config_path.open('r+') as f:
         data = json.load(f)
         
-        data.update({'options': conf})
+        data.update({'options': {name: data.value for name, data in conf.items()}})
         
         json_str = json.dumps(data, indent=4)
         
@@ -115,9 +124,9 @@ def update_property(property: str, value):
     
     with config_path.open('r+') as f:
         data = json.load(f)
-        conf[property] = value
+        conf[property].value = value
         
-        data.update({'options': conf})
+        data.update({'options': {name: data.value for name, data in conf.items()}})
         
         json_str = json.dumps(data, indent=4)
         
@@ -148,3 +157,12 @@ def set_next(n: Path):
         f.write(json_str)
         f.truncate()
 
+def get_next():
+    if next is None or next.stem == '':
+        return
+    return next.stem
+
+def get_previous():
+    if previous is None or previous.stem == '':
+        return
+    return previous.stem

@@ -6,7 +6,7 @@ import random
 from typing import Optional, List
 from enum import Enum
 from pathlib import Path
-from PIL import Image, ImageEnhance, ImageOps
+from PIL import Image, ImageEnhance, ImageOps, ImageColor
 from pixcat import Image as PixImage
 import typer
 import beastwick18_kitty_background_manager.config as cfg
@@ -32,11 +32,16 @@ def cli_list(
         enabled = True
         disabled = True
     
-    if next:
-        out.print_next()
+    if next and (n := cfg.get_next()) is not None:
+        typer.secho('Next:', fg=typer.colors.WHITE, bold=True, underline=True)
+        out.to_link_secho(n, cfg.next, fg=typer.colors.BLUE)
+        typer.echo()
+        
     
-    if prev:
-        out.print_previous()
+    if prev and (p := cfg.get_previous()) is not None:
+        typer.secho('Previous:', fg=typer.colors.WHITE, bold=True, underline=True)
+        out.to_link_secho(p, cfg.previous, fg=typer.colors.MAGENTA)
+        typer.echo()
     
     if enabled:
         typer.secho(f'Enabled {out.to_link("(📁)", cfg.enabled_path)}:', fg=typer.colors.WHITE, bold=True, underline=True)
@@ -72,7 +77,8 @@ def cli_random(
     shutil.copy(file, cfg.current_path / cfg.CURRENT_FILE)
     
     if not silent:
-        out.print_next()
+        typer.secho('Next:', fg=typer.colors.WHITE, bold=True, underline=True)
+        out.to_link_secho(cfg.next.stem, cfg.next, fg=typer.colors.BLUE)
 
 @app.command(short_help='Enable a background that is currently disabled')
 def enable(bg: str = typer.Argument(..., help='The name of the background to be enabled', autocompletion=(lambda: tools.get_ext_in_path(cfg.disabled_path, '.png')))):
@@ -140,24 +146,26 @@ def set(
     shutil.copy(file, cfg.current_path / cfg.CURRENT_FILE)
     
     if not silent:
-        out.print_next()
+        typer.secho('Next:', fg=typer.colors.WHITE, bold=True, underline=True)
+        out.to_link_secho(cfg.next.stem, cfg.next, fg=typer.colors.BLUE)
 
 @app.command(short_help='Add an image to the background folder')
 def add(
     path_to_file: str = typer.Argument(..., help='The path to the image to be added to the background folder'),
-    brightness: float = typer.Option(cfg.conf['brightness'], '--brightness', help='Overrides the set value for brightness defined in the config file'),
-    contrast: float = typer.Option(cfg.conf['contrast'], '--contrast', help='Overrides the set value for brightness defined in the config file'),
+    brightness: float = typer.Option(cfg.conf['brightness'].value, '--brightness', '-b', help='Overrides the set value for brightness defined in the config file'),
+    contrast: float = typer.Option(cfg.conf['contrast'].value, '--contrast', '-c', help='Overrides the set value for brightness defined in the config file'),
     enabled: bool = typer.Option(True, '--enabled/--disabled', '-e/-d', help='Add the new image to the enabled/disabled folder'),
-    preview: bool = typer.Option(cfg.conf['preview_on_add'], help='Overrides the set value for showing preview after adding an image'),
-    size: int = typer.Option(cfg.conf['preview_size'], '--size', help='Set the size for the outputted preview (value must be > 0 and <= 4096'),
-    fill: bool = typer.Option(cfg.conf['preview_fill'], help='Fill the screen with the image'),
-    align: str = typer.Option(cfg.conf['preview_align'], '--align', '-a', help='Choose how to align the preview image. Valid values are ("left", "center", "right")'),
-    crop_size: str = typer.Option(cfg.conf['crop_size'], '--crop-size', help='Determines the size of the cropped image. Should be in the format "WxH"'),
-    scale_type: str = typer.Option(cfg.conf['scale_type'], '--scale-type', help='Determines how the image should be positioned once resized'),
+    preview: bool = typer.Option(cfg.conf['preview_on_add'].value, help='Overrides the set value for showing preview after adding an image'),
+    size: int = typer.Option(cfg.conf['preview_size'].value, '--size', help='Set the size for the outputted preview (value must be > 0 and <= 4096'),
+    fill: bool = typer.Option(cfg.conf['preview_fill'].value, help='Fill the screen with the image'),
+    align: str = typer.Option(cfg.conf['preview_align'].value, '--align', '-a', help='Choose how to align the preview image. Valid values are ("left", "center", "right")'),
+    crop_size: str = typer.Option(cfg.conf['crop_size'].value, '--crop-size', help='Determines the size of the cropped image. Should be in the format "WxH"'),
+    scale_type: str = typer.Option(cfg.conf['scale_type'].value, '--scale-type', help='Determines how the image should be positioned once resized'),
     out_opt: Optional[str] = typer.Option(None, '--out', '-o', help='Set the output filename'),
-    force: bool = typer.Option(False, '--force', '-f', help='Overwrite any existing file that has the same name')
+    force: bool = typer.Option(False, '--force', '-f', help='Overwrite any existing file that has the same name'),
+    background_color: str = typer.Option(cfg.conf['background_color'].value, '--background-color', '-b', help='Overrides the configured color to fill the background with')
 ):
-    if align not in ('left', 'center', 'right'):
+    if not cfg.conf['preview_align'].validate(align):
         out.error(f'{align} is not a valid value for align option. Valid values are ("left", "center", "right")')
         return
     if not fill and (size <= 0 or size > 4096):
@@ -208,22 +216,12 @@ def add(
         out.error(f'crop_size\'s value of "{crop_size}" is incorrect. Should be in the format "WxH"')
         return
     crop_w, crop_h = (int(crop_props[0]), int(crop_props[1]))
-    if scale_type == 'none':
-        pass
-    elif scale_type == 'fit':
-        bgcol = tools.hex_to_tuple(cfg.conf['background_color'])
-        img = ImageOps.pad(img, (crop_w, crop_h), color=bgcol)
-        img = img.resize((crop_w, crop_h))
-    elif scale_type == 'fill':
-        img = ImageOps.fit(img, (crop_w, crop_h))
-        img = img.resize((crop_w, crop_h))
+    img = tools.scale_image(img, scale_type, crop_w, crop_h, background_color)
     
     if contrast != 1:
-        enhancer = ImageEnhance.Contrast(img)
-        img = enhancer.enhance(contrast)
+        img = tools.set_contrast(img, contrast)
     if brightness != 1:
-        enhancer = ImageEnhance.Brightness(img)
-        img = enhancer.enhance(brightness)
+        img = tools.set_brightness(img, brightness)
     
     img.save(str(out_path.resolve()))
     
@@ -283,9 +281,9 @@ def rename(
 def preview(
         bg: str = typer.Argument(..., help='The name of the background to be deleted from either the enabled or disabled folder', autocompletion=set_autocomplete),
         enabled: Optional[bool] = typer.Option(None, '--enabled/--disabled', '-e/-d', help='Search for the background in the enabled folder'),
-        size: int = typer.Option(cfg.conf['preview_size'], '--size', '-s', help='Set the size for the outputted preview (value must be > 0 and <= 4096'),
-        fill: bool = typer.Option(cfg.conf['preview_fill'], '--fill/--thumbnail', '-f', help='Show the image as a thumbnail or fill the screen'),
-        align: str = typer.Option(cfg.conf['preview_align'], '--align', '-a', help='Choose how to align the preview image. Valid values are ("left", "center", "right")')
+        size: int = typer.Option(cfg.conf['preview_size'].value, '--size', '-s', help='Set the size for the outputted preview (value must be > 0 and <= 4096'),
+        fill: bool = typer.Option(cfg.conf['preview_fill'].value, '--fill/--thumbnail', '-f', help='Show the image as a thumbnail or fill the screen'),
+        align: str = typer.Option(cfg.conf['preview_align'].value, '--align', '-a', help='Choose how to align the preview image. Valid values are ("left", "center", "right")')
         ):
     if not fill and (size <= 0 or size > 4096):
         out.error(f'The given value of {size} is outside the range of 0<n<=4096')
@@ -305,7 +303,7 @@ def value_completion(ctx: typer.Context):
     if property is None or property not in cfg.conf:
         return ['']
     
-    val = cfg.conf[property]
+    val = cfg.conf[property].value
     if type(val) == type(True):
         return ['False', 'True']
     else:
@@ -321,15 +319,18 @@ def config(
         return
     
     if value is None:
-        typer.echo(f'{property} = {cfg.conf[property]}')
+        typer.echo(f'{property} = {cfg.conf[property].value}')
         return
     
     try:
-        new_value = type(cfg.conf[property])(value)
+        new_value = type(cfg.conf[property].value)(value)
     except (TypeError, ValueError):
-        out.error(f'Cannot set property "{property}" to value "{value}": Value must be of type {out.readable_type(cfg.conf[property])}')
+        out.error(f'Cannot set property "{property}" to value "{value}": Cannot convert to type "{out.readable_type(cfg.conf[property].value)}"')
     else:
-        cfg.conf[property] = new_value
+        if not cfg.conf[property].validate(new_value):
+            out.error(f'Cannot set property "{property}" to value "{value}": The given value is not valid')
+            return
+        cfg.conf[property].value = new_value
         cfg.save_config()
         typer.echo(f'Set "{property}" to "{new_value}"')
 
